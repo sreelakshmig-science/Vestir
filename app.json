@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "Vestir",
+    "slug": "tryon-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Muse needs camera access so you can try on garments before saving them."
+      }
+    },
+    "android": {
+      "permissions": [
+        "CAMERA"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Muse needs camera access so you can try on garments before saving them."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Muse needs photo library access so you can upload a garment photo.",
+          "cameraPermission": "Muse needs camera access so you can photograph a garment to upload."
+        }
+      ],
+      "expo-asset"
+    ]
+  }
+}
