@@ -38,10 +38,8 @@ export default function TryOnScreen({ route, navigation }) {
     <View style={styles.flex}>
       <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="front" />
 
-      {/* Garment overlay - a semi-transparent reference image the wearer
-          lines themselves up against. A real try-on (body segmentation /
-          AR mesh) would replace this with a ML-driven overlay later; this
-          keeps the UI/UX honest about what's wired up today. */}
+      {/* Native builds use a reference overlay. The web build resolves
+          TryOnScreen.web.js and uses pose tracking for the garment overlay. */}
       <Image source={{ uri: dress.image }} style={styles.overlay} pointerEvents="none" />
 
       <Pressable onPress={() => navigation.goBack()} style={styles.backButton} hitSlop={10}>

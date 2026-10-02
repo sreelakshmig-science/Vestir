@@ -24,7 +24,7 @@ the camera screen — simulators can't access a real camera).
 | Home | `src/screens/HomeScreen.js` | 2-column grid of dresses (photo, name, size); "+" button to upload |
 | Upload | `src/screens/UploadDressScreen.js` | Take a photo or pick from library, add name/size/description |
 | Dress detail | `src/screens/DressDetailScreen.js` | Opens on tapping a photo; shows description + Try-On button |
-| Try-On | `src/screens/TryOnScreen.js` | Opens the camera with the garment overlaid; Save button |
+| Try-On | `src/screens/TryOnScreen.js` / `TryOnScreen.web.js` | Camera try-on; save to favourites |
 | Favourites | `src/screens/FavouritesScreen.js` | Saved dresses, most-recently-saved first |
 
 ## How state currently works (no backend yet)
@@ -52,6 +52,17 @@ that URL + the form fields to `POST /api/dresses`.
 
 This means the whole app is demoable today, before any backend exists.
 
+## Try-on behavior
+
+On web, the Try-On screen uses the 3D rigging and body-pose retargeting from
+the `tryon` project. It starts with a skinned demo tee and accepts `.glb`
+garments; humanoid arm bones let the garment deform as you move. Models without
+recognized bones are fitted and placed rigidly. Uploaded models are normalized
+to the shoulders or garment bounds, and the rear half is clipped at the camera
+plane; orient a model's front toward +Z. Camera access requires localhost or
+HTTPS, and the tracking models load from the network. iOS and Android keep the
+existing camera reference overlay.
+
 ## Connecting to your MERN backend later
 
 Three swaps, nothing else changes:
@@ -78,8 +89,6 @@ Three swaps, nothing else changes:
   Log in, Sign up) — so the eye always knows where the one meaningful action
   on a screen is. Gold is used _only_ for the "saved" state, so save-related
   status stays visually distinct from calls-to-action.
-- **The Try-On screen overlay is a placeholder**, not real AR: it shows the
-  garment photo semi-transparently over the live camera feed so the wearer
-  can line themselves up. A true try-on (body segmentation / warping the
-  garment onto the body) is a separate, much larger ML feature — worth
-  saying explicitly if asked, rather than implying it's already done.
+- **Web Try-On uses pose landmarks** to track a 3D garment over the upper
+  body. The native screen keeps a semi-transparent reference image overlay so
+  the wearer can line themselves up.
