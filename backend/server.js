@@ -1,36 +1,28 @@
-const express = require('express');
-const dotenv = require('dotenv');
-const cors = require('cors');
+const express = require("express")
+const mongoose = require("mongoose")
+const bodyParser = require("body-parser")
 
-const connectDB = require('./config/db');
+const userRoutes = require("./routes/userRoutes")
+const dressRoutes = require("./routes/dressRoutes")
+const favouriteRoutes = require("./routes/favouriteRoutes")
 
-// Load environment variables
-dotenv.config();
+const app = express()
 
-// Connect to MongoDB
-connectDB();
+app.use(bodyParser.json())
 
-const app = express();
+mongoose.connect("mongodb://127.0.0.1:27017/vestir")
+    .then(() => {
+        console.log("Database Connected!")
+    })
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+app.use("/", userRoutes)
+app.use("/", dressRoutes)
+app.use("/", favouriteRoutes)
 
-// Routes
-app.use('/api/auth', require('./routes/authRoutes'));
-app.use('/api/dresses', require('./routes/dressRoutes'));
-app.use('/api/favourites', require('./routes/favouriteRoutes'));
+app.get("/", (req, res) => {
+    res.send("Vestir Home Page!")
+})
 
-// Test route
-app.get('/', (req, res) => {
-  res.json({
-    message: 'Vestir backend is running!',
-  });
-});
-
-// Start server
-const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+app.listen(3000, () => {
+    console.log("Server has started!")
+})

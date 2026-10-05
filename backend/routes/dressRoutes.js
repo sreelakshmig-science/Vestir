@@ -1,21 +1,77 @@
-const express = require('express');
-const {
-  getDresses,
-  addDress,
-} = require('../controllers/dressController');
+const express = require("express")
+const dressModel = require("../models/Dress.js")
 
-const { protect } = require('../middleware/authMiddleware');
-const upload = require('../middleware/uploadMiddleware');
+const router = express.Router()
 
-const router = express.Router();
 
-router.get('/', getDresses);
+// ADD DRESS
+router.post("/dresses", async (req, res) => {
 
-router.post(
-  '/',
-  protect,
-  upload.single('image'),
-  addDress
-);
+    const dress = new dressModel({
+        name: req.body.name,
+        size: req.body.size,
+        description: req.body.description,
+        image: req.body.image
+    })
 
-module.exports = router;
+    await dress.save()
+
+    res.status(200).send("Dress added successfully!")
+})
+
+
+// GET ALL DRESSES
+router.get("/dresses", async (req, res) => {
+
+    const dresses = await dressModel.find({})
+
+    res.send(dresses)
+})
+
+
+// GET ONE DRESS
+router.get("/dresses/:id", async (req, res) => {
+
+    const dress = await dressModel.findById(req.params.id)
+
+    if (dress) {
+        res.send(dress)
+    }
+    else {
+        res.status(404).send("Dress not found!")
+    }
+})
+
+
+router.put("/dresses/:id", async (req, res) => {
+
+    const dress = await dressModel.findByIdAndUpdate(
+        req.params.id,
+        req.body,
+        { returnDocument: "after" }
+    )
+
+    if (dress) {
+        res.send(dress)
+    }
+    else {
+        res.status(404).send("Dress not found!")
+    }
+})
+
+
+// DELETE DRESS
+router.delete("/dresses/:id", async (req, res) => {
+
+    const dress = await dressModel.findByIdAndDelete(req.params.id)
+
+    if (dress) {
+        res.send("Dress deleted successfully!")
+    }
+    else {
+        res.status(404).send("Dress not found!")
+    }
+})
+
+
+module.exports = router
