@@ -18,6 +18,7 @@
     "expo": "~52.0.0",
     "expo-asset": "~11.0.5",
     "expo-camera": "~16.0.0",
+    "expo-file-system": "^57.0.7",
     "expo-image-picker": "~16.0.0",
     "expo-status-bar": "~2.0.0",
     "react": "18.3.1",
@@ -25,7 +26,9 @@
     "react-native": "0.76.9",
     "react-native-safe-area-context": "4.12.0",
     "react-native-screens": "~4.4.0",
-    "react-native-web": "~0.19.13"
+    "react-native-web": "~0.19.13",
+    "react-native-webview": "^14.0.1",
+    "three": "^0.186.1"
   },
   "private": true,
   "description": "UI/UX layer for the cloth try-on app. Built as a standalone Expo project so it runs on its own right now, and drops into the \"frontend\" folder of your MERN app later with minimal changes (see \"Connecting to your MERN backend\").",
