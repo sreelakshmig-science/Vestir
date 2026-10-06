@@ -15,7 +15,10 @@ router.post("/favourites", auth, async (req, res) => {
 
     await favourite.save()
 
-    res.status(200).send("Dress added to favourites!")
+    res.status(200).send({
+        message: "Dress added to favourites!",
+        favourite: favourite
+    })
 })
 
 
@@ -39,11 +42,14 @@ router.delete("/favourites/:id", auth, async (req, res) => {
     })
 
     if (favourite) {
-        res.send("Favourite removed!")
+        return res.send({
+            message: "Favourite removed!"
+        })
     }
-    else {
-        res.status(404).send("Favourite not found!")
-    }
+
+    res.status(404).send({
+        message: "Favourite not found!"
+    })
 })
 
 

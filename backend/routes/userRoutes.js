@@ -6,6 +6,7 @@ const auth = require("../middleware/Auth.js")
 
 const router = express.Router()
 
+
 // SIGNUP
 router.post("/signup", async (req, res) => {
 
@@ -14,7 +15,9 @@ router.post("/signup", async (req, res) => {
     })
 
     if (existingUser) {
-        return res.status(400).send("Email already exists!")
+        return res.status(400).send({
+            message: "Email already exists!"
+        })
     }
 
     const password = await bcrypt.hash(req.body.password, 10)
@@ -27,7 +30,9 @@ router.post("/signup", async (req, res) => {
 
     await user.save()
 
-    res.status(200).send("User created successfully!")
+    res.status(200).send({
+        message: "User created successfully!"
+    })
 })
 
 
@@ -38,40 +43,38 @@ router.post("/login", async (req, res) => {
         email: req.body.email
     })
 
-    if (user) {
-
-        const auth = await bcrypt.compare(
-            req.body.password,
-            user.password
-        )
-
-        if (auth) {
-
-            const token = jwt.sign(
-                {
-                    id: user._id,
-                    email: user.email
-                },
-                "vestir_secret",
-                {
-                    expiresIn: "1h"
-                }
-            )
-
-            res.status(200).send({
-                message: "User logged in successfully!",
-                token: token
-            })
-
-        }
-        else {
-            res.status(400).send("Email and password did not match!")
-        }
-
+    if (!user) {
+        return res.status(400).send({
+            message: "User does not exist!"
+        })
     }
-    else {
-        res.status(400).send("User does not exist!")
+
+    const authResult = await bcrypt.compare(
+        req.body.password,
+        user.password
+    )
+
+    if (!authResult) {
+        return res.status(400).send({
+            message: "Email and password did not match!"
+        })
     }
+
+    const token = jwt.sign(
+        {
+            id: user._id,
+            email: user.email
+        },
+        "vestir_secret",
+        {
+            expiresIn: "1h"
+        }
+    )
+
+    res.status(200).send({
+        message: "User logged in successfully!",
+        token: token
+    })
 })
 
 
@@ -80,23 +83,25 @@ router.get("/profile", auth, async (req, res) => {
 
     const user = await userModel.findById(req.user.id)
 
-    if (user) {
-
-        res.send({
-            name: user.name,
-            email: user.email
+    if (!user) {
+        return res.status(404).send({
+            message: "User not found!"
         })
+    }
 
-    }
-    else {
-        res.status(404).send("User not found!")
-    }
+    res.send({
+        name: user.name,
+        email: user.email
+    })
 })
 
 
 // HOME
 router.get("/home", (req, res) => {
-    res.send("Vestir Home Page!")
+
+    res.send({
+        message: "Vestir Home Page!"
+    })
 })
 
 

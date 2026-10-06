@@ -7,6 +7,12 @@ const router = express.Router()
 // ADD DRESS
 router.post("/dresses", async (req, res) => {
 
+    if (!req.body) {
+        return res.status(400).send({
+            message: "Request body is required!"
+        })
+    }
+
     const dress = new dressModel({
         name: req.body.name,
         size: req.body.size,
@@ -16,7 +22,10 @@ router.post("/dresses", async (req, res) => {
 
     await dress.save()
 
-    res.status(200).send("Dress added successfully!")
+    res.status(200).send({
+        message: "Dress added successfully!",
+        dress: dress
+    })
 })
 
 
@@ -35,14 +44,16 @@ router.get("/dresses/:id", async (req, res) => {
     const dress = await dressModel.findById(req.params.id)
 
     if (dress) {
-        res.send(dress)
+        return res.send(dress)
     }
-    else {
-        res.status(404).send("Dress not found!")
-    }
+
+    res.status(404).send({
+        message: "Dress not found!"
+    })
 })
 
 
+// UPDATE DRESS
 router.put("/dresses/:id", async (req, res) => {
 
     const dress = await dressModel.findByIdAndUpdate(
@@ -52,11 +63,12 @@ router.put("/dresses/:id", async (req, res) => {
     )
 
     if (dress) {
-        res.send(dress)
+        return res.send(dress)
     }
-    else {
-        res.status(404).send("Dress not found!")
-    }
+
+    res.status(404).send({
+        message: "Dress not found!"
+    })
 })
 
 
@@ -66,11 +78,14 @@ router.delete("/dresses/:id", async (req, res) => {
     const dress = await dressModel.findByIdAndDelete(req.params.id)
 
     if (dress) {
-        res.send("Dress deleted successfully!")
+        return res.send({
+            message: "Dress deleted successfully!"
+        })
     }
-    else {
-        res.status(404).send("Dress not found!")
-    }
+
+    res.status(404).send({
+        message: "Dress not found!"
+    })
 })
 
 

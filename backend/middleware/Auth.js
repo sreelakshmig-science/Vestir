@@ -1,12 +1,19 @@
 const jwt = require("jsonwebtoken")
 
+
 const auth = (req, res, next) => {
 
-    const token = req.headers.authorization
+    const authHeader = req.headers.authorization
 
-    if (!token) {
-        return res.status(401).send("No token provided!")
+    if (!authHeader) {
+        return res.status(401).send({
+            message: "No authorization token provided!"
+        })
     }
+
+    const token = authHeader.startsWith("Bearer ")
+        ? authHeader.split(" ")[1]
+        : authHeader
 
     try {
 
@@ -18,9 +25,12 @@ const auth = (req, res, next) => {
 
     } catch (error) {
 
-        res.status(401).send("Invalid token!")
+        return res.status(401).send({
+            message: "Invalid or expired token!"
+        })
 
     }
 }
+
 
 module.exports = auth
