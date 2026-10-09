@@ -6,7 +6,7 @@ import PrimaryButton from '../components/PrimaryButton';
 import { useFavourites } from '../context/FavouritesContext';
 
 export default function TryOnScreen({ route, navigation }) {
-  const { dress } = route.params;
+  const dress = route?.params?.dress || { name: 'Garment', size: 'M' };
   const [permission, requestPermission] = useCameraPermissions();
   const [saved, setSaved] = useState(false);
   const cameraRef = useRef(null);

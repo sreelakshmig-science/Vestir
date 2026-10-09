@@ -563,6 +563,30 @@ Use `POST /upload` to upload an image and obtain its URL before creating or upda
 
 Keep Cloudinary credentials in the backend `.env` file. Do not commit `.env` to GitHub.
 
-### Try-On
+### 3D Garment Generation (Hunyuan3D-2)
 
-The current backend does not provide a real AI/AR try-on API. The try-on functionality can be integrated separately when the final implementation is decided.
+The backend provides a proxy to a local or remote Hunyuan3D-2 instance for generating 3D `.glb` meshes from 2D images.
+
+#### 1. Check Server Status
+```text
+GET /api/hunyuan/status
+```
+**Response:**
+```json
+{
+  "ok": true,
+  "base": "http://127.0.0.1:8080"
+}
+```
+
+#### 2. Generate 3D Garment GLB
+```text
+POST /api/hunyuan/generate
+Content-Type: multipart/form-data
+```
+**Form Data:**
+- `image`: Garment photo file (PNG / JPEG)
+
+**Response:**
+- Binary `model/gltf-binary` stream (`.glb` file).
+

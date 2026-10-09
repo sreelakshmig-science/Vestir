@@ -7,6 +7,39 @@ import { useDresses } from '../context/DressesContext';
 export default function HomeScreen({ navigation }) {
   const { dresses } = useDresses();
 
+  const handleCreate3D = () => {
+    if (typeof document !== 'undefined') {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/png,image/jpeg,image/webp,image/jpg';
+      input.onchange = () => {
+        const file = input.files?.[0];
+        if (file) {
+          const rawName = file.name.replace(/\.[^/.]+$/, '').trim();
+          navigation.navigate('TryOn', {
+            dress: {
+              id: `custom-${Date.now()}`,
+              name: rawName || 'Custom Garment',
+              size: 'Custom',
+              uploader: 'You',
+              description: 'AI Generated 3D Garment from Hunyuan3D',
+            },
+            initialImageFile: file,
+          });
+        }
+      };
+      input.click();
+    } else {
+      navigation.navigate('TryOn', {
+        dress: {
+          id: `custom-${Date.now()}`,
+          name: 'Custom 3D Garment',
+          size: 'Custom',
+        },
+      });
+    }
+  };
+
   return (
     <View style={styles.flex}>
       <View style={styles.header}>
@@ -25,6 +58,23 @@ export default function HomeScreen({ navigation }) {
         numColumns={2}
         columnWrapperStyle={styles.row}
         contentContainerStyle={styles.grid}
+        ListHeaderComponent={
+          <Pressable style={styles.aiBanner} onPress={handleCreate3D}>
+            <View style={styles.aiBadgeRow}>
+              <View style={styles.aiBadge}>
+                <Text style={styles.aiBadgeText}>Virtual 3D TRY-ON</Text>
+              </View>
+              <Text style={styles.aiBadgeSparkle}></Text>
+            </View>
+            <Text style={styles.aiBannerTitle}>Create 3D Try-On from Photo</Text>
+            <Text style={styles.aiBannerSubtitle}>
+
+            </Text>
+            <View style={styles.aiBannerButton}>
+              <Text style={styles.aiBannerButtonText}>Upload Garment Photo →</Text>
+            </View>
+          </Pressable>
+        }
         renderItem={({ item }) => (
           <DressCard
             dress={item}
@@ -56,6 +106,64 @@ const styles = StyleSheet.create({
   grid: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
   row: { justifyContent: 'space-between' },
   cardHalf: { width: '48%' },
+  aiBanner: {
+    marginBottom: spacing.lg,
+    backgroundColor: '#1E2D24',
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    shadowColor: colors.ink,
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  aiBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  aiBadge: {
+    backgroundColor: colors.emerald,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    marginRight: spacing.sm,
+  },
+  aiBadgeText: {
+    fontFamily: type.bodySemiBold?.fontFamily,
+    fontSize: 11,
+    color: colors.bone,
+    letterSpacing: 0.5,
+  },
+  aiBadgeSparkle: {
+    ...type.caption,
+    color: '#85D4B2',
+    fontSize: 12,
+  },
+  aiBannerTitle: {
+    ...type.h2,
+    color: colors.bone,
+    marginTop: spacing.xs,
+  },
+  aiBannerSubtitle: {
+    ...type.caption,
+    color: '#B5C4BC',
+    marginTop: spacing.xs,
+    lineHeight: 18,
+  },
+  aiBannerButton: {
+    alignSelf: 'flex-start',
+    marginTop: spacing.md,
+    backgroundColor: colors.emerald,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+  },
+  aiBannerButtonText: {
+    ...type.label,
+    color: colors.bone,
+    fontWeight: '600',
+  },
   fab: {
     position: 'absolute',
     right: spacing.lg,

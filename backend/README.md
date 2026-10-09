@@ -1,6 +1,6 @@
 # Vestir Backend
 
-The backend API for **Vestir**, a clothing try-on application. It handles user authentication, dress management, favourites, and image uploads.
+The backend API for **Vestir**, a clothing try-on application. It handles user authentication, dress management, favourites, Cloudinary image uploads, and proxying 3D garment generation to Hunyuan3D-2.
 
 ## Tech Stack
 
@@ -12,24 +12,24 @@ The backend API for **Vestir**, a clothing try-on application. It handles user a
 * **bcrypt** — Password hashing
 * **Cloudinary** — Image storage
 * **Multer** — Image upload handling
+* **@gradio/client** — Interface for Hunyuan3D-2 Gradio server
 
 ## Features
 
-* User signup and login
-* JWT-based authentication
+* User signup and login with JWT authentication
 * User profile retrieval
-* Dress creation, retrieval, updating, and deletion
+* Dress catalog creation, retrieval, updating, and deletion
 * Favourite dress management
-* Image uploads to Cloudinary
-* MongoDB storage for user and dress data
+* High-res image uploads to Cloudinary
+* Hunyuan3D-2 AI 3D garment generation proxy (`/api/hunyuan/generate`)
+* Health check for Hunyuan3D server (`/api/hunyuan/status`)
 
 ## Prerequisites
 
-Install the following before running the backend:
-
 * Node.js and npm
-* MongoDB
-* A Cloudinary account for image uploads
+* MongoDB running locally or via Atlas
+* A Cloudinary account for garment image uploads
+* *(Optional)* Local Hunyuan3D-2 Gradio server running on `http://127.0.0.1:8080` (or configured via `HUNYUAN_URL`)
 
 ## Getting Started
 
@@ -43,15 +43,18 @@ npm install
 
 ### 2. Configure environment variables
 
-Create a `.env` file in the `backend` folder with your Cloudinary credentials:
+Create a `.env` file in the `backend` folder:
 
 ```env
 CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
+
+# Optional: override Hunyuan3D server URL (defaults to http://127.0.0.1:8080)
+# HUNYUAN_URL=http://127.0.0.1:8080
 ```
 
-Replace the placeholder values with your own Cloudinary credentials. Never commit your `.env` file to GitHub.
+Never commit your `.env` file to GitHub.
 
 ### 3. Start MongoDB
 
@@ -90,9 +93,19 @@ See [API.md](./API.md) for endpoint details, request formats, and example respon
 ```text
 backend/
 ├── middleware/
+│   └── authMiddleware.js
 ├── models/
+│   ├── Dress.js
+│   ├── Favourite.js
+│   └── User.js
 ├── routes/
+│   ├── dressRoutes.js
+│   ├── favouriteRoutes.js
+│   ├── hunyuanRoutes.js
+│   ├── uploadRoutes.js
+│   └── userRoutes.js
 ├── utils/
+│   └── cloudinary.js
 ├── .env                 # Local secrets; do not commit
 ├── .gitignore
 ├── API.md               # API endpoint documentation
@@ -100,9 +113,3 @@ backend/
 ├── package-lock.json
 └── server.js
 ```
-
-## Notes
-
-* MongoDB stores application data.
-* Cloudinary stores uploaded images, while their secure URLs are saved in MongoDB.
-* Keep credentials private and ensure `.env` is excluded from version control.

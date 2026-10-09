@@ -1,24 +1,33 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Image } from 'react-native';
 import { colors, spacing, type, radius } from '../theme/tokens';
 import PrimaryButton from '../components/PrimaryButton';
 import { useFavourites } from '../context/FavouritesContext';
 import { TryOnEngine } from '../tryon/TryOnEngine';
+import { removeBackground } from '../tryon/bgRemoval';
+import { generateGarmentGlb } from '../tryon/hunyuanClient';
 
 export default function TryOnScreen({ route, navigation }) {
-  const { dress } = route.params;
+  const dress = route?.params?.dress || { id: 'custom', name: 'Custom Garment', size: 'M' };
   const containerRef = useRef(null);
   const engineRef = useRef(null);
   const resizeRef = useRef(null);
   const cancelledRef = useRef(false);
   const uploadedUrlsRef = useRef(new Set());
+  const initialGenTriggeredRef = useRef(false);
+
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
   const [controlsOpen, setControlsOpen] = useState(false);
-  const [glbUrl, setGlbUrl] = useState(null);
-  const [teeColor, setTeeColor] = useState('#2563eb');
+  const [glbUrl, setGlbUrl] = useState(route?.params?.initialGlbUrl || null);
   const [adjustments, setAdjustments] = useState({ s: 1, y: 0, z: 0 });
+
+  // Hunyuan3D generation state
+  const [genStatus, setGenStatus] = useState('idle'); // 'idle' | 'removing_bg' | 'generating' | 'done' | 'error'
+  const [genMessage, setGenMessage] = useState('');
+  const [genPreview, setGenPreview] = useState(null);
+
   const { addFavourite } = useFavourites();
   const ready = status === 'running';
 
@@ -34,6 +43,14 @@ export default function TryOnScreen({ route, navigation }) {
     };
   }, []);
 
+  // If navigated to with an initial image file, start Hunyuan3D generation immediately
+  useEffect(() => {
+    if (route?.params?.initialImageFile && !initialGenTriggeredRef.current) {
+      initialGenTriggeredRef.current = true;
+      handleGenerateFromPhoto(route.params.initialImageFile);
+    }
+  }, [route?.params?.initialImageFile]);
+
   useEffect(() => {
     if (!ready || !engineRef.current) return;
     engineRef.current.setMode('clothes').catch((cause) => {
@@ -43,11 +60,87 @@ export default function TryOnScreen({ route, navigation }) {
 
   useEffect(() => {
     if (!ready || !engineRef.current) return;
-    const garment = glbUrl ? { kind: 'glb', url: glbUrl } : { kind: 'tee', color: teeColor };
-    engineRef.current.setGarment(garment, adjustments).catch((cause) => {
-      setError(cause.message || 'Could not load that garment.');
-    });
-  }, [ready, glbUrl, teeColor, adjustments]);
+    if (glbUrl) {
+      engineRef.current.setGarment({ kind: 'glb', url: glbUrl }, adjustments).catch((cause) => {
+        setError(cause.message || 'Could not load that garment.');
+      });
+    } else {
+      engineRef.current.clearGarment();
+    }
+  }, [ready, glbUrl, adjustments]);
+
+  const generateFromDressImage = async () => {
+    if (!dress?.image) return;
+    try {
+      setGenStatus('removing_bg');
+      setGenMessage('Loading garment photo…');
+      setError('');
+      const resp = await fetch(dress.image);
+      const blob = await resp.blob();
+      await handleGenerateFromPhoto(blob);
+    } catch (err) {
+      console.warn('Could not fetch dress.image directly:', err);
+      setError('Could not auto-fetch this dress image. Please select the photo using "Generate from Photo".');
+      setGenStatus('idle');
+      setGenMessage('');
+    }
+  };
+
+  const handleGenerateFromPhoto = async (file) => {
+    if (!file) return;
+    setGenStatus('removing_bg');
+    setGenMessage('Removing background…');
+    setError('');
+
+    let transparentBlob = file;
+    try {
+      // 1. In-browser background removal via @imgly/background-removal
+      transparentBlob = await removeBackground(file);
+      const previewUrl = URL.createObjectURL(transparentBlob);
+      uploadedUrlsRef.current.add(previewUrl);
+      setGenPreview(previewUrl);
+    } catch (bgErr) {
+      console.warn('Background removal skipped or failed, falling back to original image:', bgErr);
+      try {
+        const origPreview = URL.createObjectURL(file);
+        uploadedUrlsRef.current.add(origPreview);
+        setGenPreview(origPreview);
+      } catch { }
+      transparentBlob = file;
+    }
+
+    try {
+      // 2. Generate 3D model via Express proxy -> Hunyuan3D Gradio server
+      setGenStatus('generating');
+      setGenMessage('Generating 3D model… (this may take 1–3 minutes)');
+      const url = await generateGarmentGlb(transparentBlob, (stepMsg) => {
+        setGenMessage(stepMsg);
+      });
+
+      uploadedUrlsRef.current.add(url);
+      setGlbUrl(url);
+      setGenStatus('done');
+      setGenMessage('3D model ready! Start camera to try it on.');
+    } catch (genErr) {
+      console.error('generation error:', genErr);
+      setGenStatus('error');
+      setError(genErr.message || 'generation failed.');
+      setGenMessage('');
+    }
+  };
+
+  const pickGarmentPhoto = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/png,image/jpeg,image/webp,image/jpg';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (file) {
+        handleGenerateFromPhoto(file);
+      }
+    };
+    input.click();
+  };
 
   const pickGarment = () => {
     const input = document.createElement('input');
@@ -132,7 +225,7 @@ export default function TryOnScreen({ route, navigation }) {
   };
 
   const slider = (label, key, min, max, step) => (
-    <View style={styles.slider}>
+    <View style={styles.slider} key={key}>
       <Text style={styles.sliderLabel}>{label}: {adjustments[key].toFixed(2)}</Text>
       <input
         aria-label={label}
@@ -151,6 +244,8 @@ export default function TryOnScreen({ route, navigation }) {
     setSaved(true);
   };
 
+  const isGenerating = genStatus === 'removing_bg' || genStatus === 'generating';
+
   return (
     <View style={styles.screen}>
       <View ref={containerRef} style={styles.cameraStage} />
@@ -162,12 +257,74 @@ export default function TryOnScreen({ route, navigation }) {
         <View style={styles.startPanel}>
           <Text style={styles.title}>Try on {dress.name}</Text>
           <Text style={styles.description}>
-            Start the camera to put on a 3D demo shirt, or upload a garment model in .glb format.
+            Generate a 3D garment from any photo or upload an existing .glb model.
           </Text>
+
+          {/* Active Generation Progress Card */}
+          {isGenerating && (
+            <View style={styles.genProgressBox}>
+              <View style={styles.genHeaderRow}>
+                <ActivityIndicator size="small" color={colors.emerald} style={{ marginRight: spacing.sm }} />
+                <Text style={styles.genProgressTitle}>
+                  {genStatus === 'removing_bg' ? 'Removing Background…' : 'Generating 3D Model…'}
+                </Text>
+              </View>
+              <Text style={styles.genProgressMsg}>{genMessage}</Text>
+              {genPreview && (
+                <View style={styles.previewRow}>
+                  <Image source={{ uri: genPreview }} style={styles.garmentThumb} resizeMode="contain" />
+                  <Text style={styles.thumbLabel}>Isolated Garment</Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Completed Generation Card */}
+          {genStatus === 'done' && (
+            <View style={styles.genSuccessBox}>
+              <Text style={styles.genSuccessTitle}>✓ 3D Garment Ready</Text>
+              <Text style={styles.genSuccessMsg}>{genMessage || 'Model loaded! Click Start camera below.'}</Text>
+              {genPreview && (
+                <Image source={{ uri: genPreview }} style={styles.garmentThumbSmall} resizeMode="contain" />
+              )}
+            </View>
+          )}
+
           {!!error && <Text style={styles.error}>{error}</Text>}
-          <Pressable onPress={pickGarment} style={styles.uploadButton} disabled={status === 'loading'}>
+
+          {/* If dress has an image and no GLB generated yet, offer one-click 3D creation */}
+          {dress?.image && !glbUrl && (
+            <Pressable
+              onPress={generateFromDressImage}
+              style={[styles.aiGenButton, isGenerating && styles.disabledButton]}
+              disabled={isGenerating || status === 'loading'}
+            >
+              <Text style={styles.aiGenButtonText}>
+                ✨ Generate 3D from {dress.name} Photo
+              </Text>
+            </Pressable>
+          )}
+
+          {/* Hunyuan3D Generate from Photo Button */}
+          <Pressable
+            onPress={pickGarmentPhoto}
+            style={[styles.aiGenButton, isGenerating && styles.disabledButton]}
+            disabled={isGenerating || status === 'loading'}
+          >
+            <Text style={styles.aiGenButtonText}>
+              ✨ {glbUrl ? 'Generate New 3D Garment from Photo' : 'Generate 3D Garment from Photo'}
+            </Text>
+          </Pressable>
+
+          {/* Upload GLB directly */}
+          <Pressable
+            onPress={pickGarment}
+            style={styles.uploadButton}
+            disabled={isGenerating || status === 'loading'}
+          >
             <Text style={styles.uploadText}>{glbUrl ? 'Choose a different .glb model' : 'Upload garment model (.glb)'}</Text>
           </Pressable>
+
           <PrimaryButton
             label={status === 'loading' ? 'Loading camera and models…' : 'Start camera'}
             onPress={start}
@@ -182,9 +339,11 @@ export default function TryOnScreen({ route, navigation }) {
           <View style={styles.bottomCard}>
             <View style={styles.panelHeader}>
               <View style={styles.panelHeading}>
-                <Text style={styles.dressLabel}>{glbUrl ? 'Uploaded 3D garment' : '3D demo tee'}</Text>
+                <Text style={styles.dressLabel}>{glbUrl ? (dress.name || '3D Garment') : 'No 3D Garment Loaded'}</Text>
                 <Text style={styles.dressMeta}>
-                  {glbUrl ? 'Arm tracking follows a humanoid rig.' : 'Raise and bend your arms to see it deform.'}
+                  {glbUrl
+                    ? 'Arm tracking follows a humanoid rig or rigid torso fit.'
+                    : 'Generate or upload a 3D garment to fit on your body.'}
                 </Text>
               </View>
               <Pressable onPress={() => setControlsOpen(false)} style={styles.closeControls}>
@@ -193,27 +352,57 @@ export default function TryOnScreen({ route, navigation }) {
               </Pressable>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
-              <Pressable onPress={pickGarment} style={styles.uploadButton}>
-                <Text style={styles.uploadText}>{glbUrl ? 'Choose another .glb model' : 'Upload garment model (.glb)'}</Text>
-              </Pressable>
-              {glbUrl ? (
-                <Pressable onPress={() => setGlbUrl(null)} style={styles.secondaryButton}>
-                  <Text style={styles.uploadText}>Use built-in skinned tee</Text>
-                </Pressable>
-              ) : (
-                <View style={styles.colorRow}>
-                  <Text style={styles.sliderLabel}>Demo tee color</Text>
-                  <input
-                    aria-label="Demo tee color"
-                    type="color"
-                    value={teeColor}
-                    onChange={(event) => setTeeColor(event.target.value)}
-                  />
+              {/* Generation Progress in Controls Panel */}
+              {isGenerating && (
+                <View style={styles.genProgressBox}>
+                  <View style={styles.genHeaderRow}>
+                    <ActivityIndicator size="small" color={colors.emerald} style={{ marginRight: spacing.sm }} />
+                    <Text style={styles.genProgressTitle}>
+                      {genStatus === 'removing_bg' ? 'Removing Background…' : 'Hunyuan3D Generating…'}
+                    </Text>
+                  </View>
+                  <Text style={styles.genProgressMsg}>{genMessage}</Text>
                 </View>
               )}
-              {slider('Size', 's', 0.6, 1.8, 0.02)}
-              {slider('Up / down', 'y', -0.6, 0.6, 0.01)}
-              {slider('Forward / back', 'z', -0.5, 0.5, 0.01)}
+
+              {/* If dress has an image and no GLB loaded, offer one-click 3D creation */}
+              {dress?.image && !glbUrl && (
+                <Pressable
+                  onPress={generateFromDressImage}
+                  style={[styles.aiGenButton, isGenerating && styles.disabledButton]}
+                  disabled={isGenerating}
+                >
+                  <Text style={styles.aiGenButtonText}>✨ Generate 3D from {dress.name} Photo</Text>
+                </Pressable>
+              )}
+
+              {/* Generate from Photo Button */}
+              <Pressable
+                onPress={pickGarmentPhoto}
+                style={[styles.aiGenButton, isGenerating && styles.disabledButton]}
+                disabled={isGenerating}
+              >
+                <Text style={styles.aiGenButtonText}>✨ Generate from Photo</Text>
+              </Pressable>
+
+              <Pressable onPress={pickGarment} style={styles.uploadButton} disabled={isGenerating}>
+                <Text style={styles.uploadText}>{glbUrl ? 'Choose another .glb model' : 'Upload garment model (.glb)'}</Text>
+              </Pressable>
+
+              {glbUrl && (
+                <Pressable onPress={() => setGlbUrl(null)} style={styles.secondaryButton}>
+                  <Text style={styles.uploadText}>Remove garment</Text>
+                </Pressable>
+              )}
+
+              {glbUrl && (
+                <>
+                  {slider('Size', 's', 0.6, 1.8, 0.02)}
+                  {slider('Up / down', 'y', -0.6, 0.6, 0.01)}
+                  {slider('Forward / back', 'z', -0.5, 0.5, 0.01)}
+                </>
+              )}
+
               {!!error && <Text style={styles.error}>{error}</Text>}
               <PrimaryButton
                 label={saved ? 'Saved to favourites ✓' : 'Save to favourites'}
@@ -248,19 +437,20 @@ const styles = StyleSheet.create({
   backButton: {
     position: 'absolute', top: spacing.xl, left: spacing.md, width: 40, height: 40,
     borderRadius: radius.pill, backgroundColor: 'rgba(20,23,28,0.72)',
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center', zIndex: 10,
   },
   backText: { color: colors.bone, fontSize: 18 },
   startPanel: {
     position: 'absolute', left: spacing.md, right: spacing.md, bottom: spacing.md,
     backgroundColor: colors.bone, borderRadius: radius.lg, padding: spacing.lg,
+    maxHeight: '85%', overflow: 'auto',
   },
   title: { ...type.h2 },
   description: { ...type.body, color: colors.clay, marginTop: spacing.xs },
   error: { ...type.body, color: colors.error, marginTop: spacing.sm },
   startButton: { marginTop: spacing.md },
   bottomCard: {
-    position: 'absolute', bottom: 0, left: 0, right: 0, maxHeight: '46%',
+    position: 'absolute', bottom: 0, left: 0, right: 0, maxHeight: '48%',
     backgroundColor: colors.bone, borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg, paddingHorizontal: spacing.lg,
     paddingTop: spacing.md, paddingBottom: spacing.md,
@@ -286,6 +476,41 @@ const styles = StyleSheet.create({
   compactSaveButton: { flex: 1, paddingVertical: spacing.sm, borderRadius: radius.pill },
   dressLabel: { ...type.dressName },
   dressMeta: { ...type.caption, marginTop: spacing.xs },
+  aiGenButton: {
+    marginTop: spacing.sm, paddingVertical: 12, alignItems: 'center',
+    backgroundColor: '#E7F2EC', borderWidth: 1.5, borderColor: colors.emerald,
+    borderRadius: radius.md,
+  },
+  aiGenButtonText: { ...type.label, color: colors.emerald, fontWeight: '600' },
+  disabledButton: { opacity: 0.6 },
+  genProgressBox: {
+    marginTop: spacing.sm, marginBottom: spacing.xs, padding: spacing.md,
+    backgroundColor: '#F3F7F5', borderRadius: radius.md, borderWidth: 1,
+    borderColor: '#D3E6DC',
+  },
+  genHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xs },
+  genProgressTitle: { ...type.label, color: colors.emerald, fontWeight: '600' },
+  genProgressMsg: { ...type.caption, color: colors.ink },
+  previewRow: {
+    flexDirection: 'row', alignItems: 'center', marginTop: spacing.sm,
+    paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: '#E2EDE7',
+  },
+  garmentThumb: {
+    width: 44, height: 44, borderRadius: radius.sm,
+    backgroundColor: '#E5EBE8', marginRight: spacing.sm,
+  },
+  garmentThumbSmall: {
+    width: 36, height: 36, borderRadius: radius.sm,
+    backgroundColor: '#E5EBE8', marginTop: spacing.xs,
+  },
+  thumbLabel: { ...type.caption, color: colors.clay, fontSize: 12 },
+  genSuccessBox: {
+    marginTop: spacing.sm, marginBottom: spacing.xs, padding: spacing.md,
+    backgroundColor: '#EEF7F2', borderRadius: radius.md, borderWidth: 1,
+    borderColor: '#C7E4D3',
+  },
+  genSuccessTitle: { ...type.label, color: colors.emerald, fontWeight: '600' },
+  genSuccessMsg: { ...type.caption, color: colors.ink, marginTop: 2 },
   uploadButton: {
     marginTop: spacing.sm, paddingVertical: spacing.sm, alignItems: 'center',
     borderWidth: 1, borderColor: colors.clayLight, borderRadius: radius.md,

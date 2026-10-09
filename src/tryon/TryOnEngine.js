@@ -108,8 +108,18 @@ export class TryOnEngine {
     this.mode = mode;
   }
 
+  clearGarment() {
+    if (this.clothes) {
+      this.clothes.clearGarment();
+    }
+  }
+
   async setGarment(spec, adj) {
     await this.ensureClothes();
+    if (!spec || spec.kind === "none" || (spec.kind === "glb" && !spec.url)) {
+      this.clearGarment();
+      return;
+    }
     return this.clothes.setGarment(spec, adj);
   }
 

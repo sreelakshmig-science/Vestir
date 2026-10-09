@@ -1,94 +1,81 @@
 # Vestir — Cloth Try-On App (React Native / Expo)
 
-UI/UX layer for the cloth try-on app. Built as a standalone Expo project so
-it runs on its own right now, and drops into the "frontend" folder of your
-MERN app later with minimal changes (see "Connecting to your MERN backend").
+UI/UX and 3D Virtual Try-On layer for the Vestir clothing try-on app. Built with React Native and Expo (supporting web and mobile) with an integrated Express.js backend for authentication, dress catalog management, Cloudinary image storage, and Hunyuan3D-2 AI 3D garment generation.
 
-## Run it
+## Getting Started
 
+### 1. Prerequisites
+- **Node.js** (v18+ recommended)
+- **MongoDB** running locally (`mongodb://127.0.0.1:27017/vestir`)
+- **Hunyuan3D-2** Gradio server (optional, for local AI 3D garment generation on `http://127.0.0.1:8080`)
+
+### 2. Run the Backend
+```bash
+cd backend
+npm install
+npm start
+```
+The backend server runs on `http://localhost:3000`.
+
+### 3. Run the Frontend
 ```bash
 npm install
+npm run web
+```
+Open `http://localhost:8081` in your browser. (Camera access requires `localhost` or HTTPS).
+
+For mobile testing:
+```bash
 npx expo start
 ```
+Scan the QR code with the **Expo Go** app on your phone.
 
-Scan the QR code with the **Expo Go** app on your phone (easiest way to test
-the camera screen — simulators can't access a real camera).
+---
 
-## Screens, and where they live
+## Screens & Architecture
 
-| Screen | File | Notes |
+| Screen | File | Description |
 |---|---|---|
-| Login | `src/screens/LoginScreen.js` | On success -> Home |
-| Sign up | `src/screens/SignupScreen.js` | Name, Gmail, password, confirm. On success -> Instructions |
-| Instructions | `src/screens/InstructionsScreen.js` | Shown once after signup; also reachable anytime from Home ("How it works") |
-| Home | `src/screens/HomeScreen.js` | 2-column grid of dresses (photo, name, size); "+" button to upload |
-| Upload | `src/screens/UploadDressScreen.js` | Take a photo or pick from library, add name/size/description |
-| Dress detail | `src/screens/DressDetailScreen.js` | Opens on tapping a photo; shows description + Try-On button |
-| Try-On | `src/screens/TryOnScreen.js` / `TryOnScreen.web.js` | Camera try-on; save to favourites |
-| Favourites | `src/screens/FavouritesScreen.js` | Saved dresses, most-recently-saved first |
+| **Login** | `src/screens/LoginScreen.js` | User authentication (on success -> Home) |
+| **Sign up** | `src/screens/SignupScreen.js` | User registration (on success -> Instructions) |
+| **Instructions** | `src/screens/InstructionsScreen.js` | "How it works" onboarding guide |
+| **Home** | `src/screens/HomeScreen.js` | 2-column dress catalog with " Create 3D Garment" and "+" upload actions |
+| **Upload** | `src/screens/UploadDressScreen.js` | Take/pick a photo, add name/size/description, upload to Cloudinary/catalog |
+| **Dress Detail** | `src/screens/DressDetailScreen.js` | Garment overview with one-tap "Try it on" |
+| **Try-On (Web)** | `src/screens/TryOnScreen.web.js` | Live webcam virtual try-on with pose estimation & AI 3D generation |
+| **Try-On (Native)** | `src/screens/TryOnScreen.js` | Mobile camera reference overlay try-on |
+| **Favourites** | `src/screens/FavouritesScreen.js` | Saved items list with removal & quick navigation |
 
-## How state currently works (no backend yet)
+---
 
-- `src/context/DressesContext.js` holds the dress list in memory (seeded from
-  `src/data/mockDresses.js`), standing in for `GET/POST /api/dresses`.
-  Uploading a dress on `UploadDressScreen` calls `addDress()`, which puts it
-  straight into this shared list — that's why it shows up on Home immediately.
-- `src/context/FavouritesContext.js` holds favourites in memory with React
-  Context, standing in for `GET/POST/DELETE /api/favourites`.
-- Login/Signup just simulate a network delay and navigate — no real auth yet.
+## 3D Virtual Try-On & AI Pipeline
 
-## Uploading a photo
+### 1. Live Pose Retargeting
+- Utilizes Google MediaPipe Pose Landmarker for real-time 33-point body tracking.
+- Garments with humanoid skeletal rigs track arm and shoulder movements in real time.
+- Garments without rigs fall back to adaptive rigid torso placement.
+- Models are normalized to shoulder width, with depth clipping to keep the fit natural against the camera plane.
+- Fine-tune positioning in real-time with Size, Vertical (Y), and Depth (Z) adjustment controls.
 
-`UploadDressScreen` uses `expo-image-picker` to either take a new photo or
-pick one from the phone's library, plus a form for name/size/description.
-On web, the same calls open the browser's native camera/file picker instead
-— same code, different underlying platform API, handled by Expo automatically.
+### 2. Hunyuan3D-2 AI Garment Generation
+- **In-Browser Background Removal**: Integrated `@imgly/background-removal` isolates garments automatically from any photo before 3D reconstruction.
+- **Image-to-3D Generation**: Isolated garment images are sent via the Express backend proxy (`POST /api/hunyuan/generate`) to the local Hunyuan3D-2 Gradio instance, streaming generation progress and returning a fitted `.glb` binary.
+- **One-Tap Try-On**: Generate 3D garments directly from catalog dresses, upload photos from your device, or load pre-existing `.glb` 3D models.
+- **Clean Camera Experience**: Webcam virtual try-on operates exclusively on real 3D garments (no synthetic demo tees). When no model is loaded, the camera feed stays clean and ready for generation or upload.
 
-Right now the picked image is only a local file URI held in memory — it is
-**not uploaded anywhere yet**. Wiring it to a real backend means: send the
-image as `multipart/form-data` (or to a signed cloud-storage URL) from
-`handleSubmit` in `UploadDressScreen.js`, get back a permanent URL, and send
-that URL + the form fields to `POST /api/dresses`.
+---
 
-This means the whole app is demoable today, before any backend exists.
+## State & Backend Integration
 
-## Try-on behavior
+- **Authentication**: JWT token-based auth with bcrypt password hashing (`/signup`, `/login`, `/profile`).
+- **Dress Catalog**: MongoDB storage with Mongoose (`/api/dresses`).
+- **Favourites**: Persistent user favourites with duplicate protection (`/api/favourites`).
+- **Cloudinary Storage**: High-resolution garment photo uploads (`/upload`).
+- **Hunyuan3D Proxy**: Bridges frontend requests to Gradio AI server (`/api/hunyuan/status`, `/api/hunyuan/generate`).
 
-On web, the Try-On screen uses the 3D rigging and body-pose retargeting from
-the `tryon` project. It starts with a skinned demo tee and accepts `.glb`
-garments; humanoid arm bones let the garment deform as you move. Models without
-recognized bones are fitted and placed rigidly. Uploaded models are normalized
-to the shoulders or garment bounds, and the rear half is clipped at the camera
-plane; orient a model's front toward +Z. Camera access requires localhost or
-HTTPS, and the tracking models load from the network. iOS and Android keep the
-existing camera reference overlay.
+---
 
-## Connecting to your MERN backend later
+## Design System
 
-Three swaps, nothing else changes:
-
-1. **DressesContext** — replace the `mockDresses` seed with a `fetch('/api/dresses')`
-   call in a `useEffect`, and have `addDress` also `POST` to that same endpoint.
-2. **FavouritesContext** — inside `addFavourite`/`removeFavourite`, add the
-   matching `fetch('/api/favourites', { method: 'POST' | 'DELETE', ... })`
-   call alongside the local state update.
-3. **Login/SignupScreen** — replace the `setTimeout` with a real
-   `fetch('/api/auth/login' | '/api/auth/signup', { method: 'POST', body: ... })`,
-   and store the JWT it returns (e.g. with `expo-secure-store`) for future
-   authenticated requests.
-
-## Design decisions (for explaining this to someone)
-
-- **Two type families, one job each**: a serif (`PlayfairDisplay`) for dress
-  names/headings gives it a catalogue/editorial feel; a sans (`Inter`) handles
-  all functional UI text (buttons, labels, inputs). Fonts aren't bundled in
-  this pass — without linking them via `expo-font`, React Native just falls
-  back to the system font, so the app still works, it just loses some of the
-  editorial character until you add them.
-- **Emerald as the one accent color**, used only for primary actions (Try-On,
-  Log in, Sign up) — so the eye always knows where the one meaningful action
-  on a screen is. Gold is used _only_ for the "saved" state, so save-related
-  status stays visually distinct from calls-to-action.
-- **Web Try-On uses pose landmarks** to track a 3D garment over the upper
-  body. The native screen keeps a semi-transparent reference image overlay so
-  the wearer can line themselves up.
+- **Typography**: Editorial serif (`PlayfairDisplay`) for garment titles and headings; clean functional sans (`Inter`) for controls and labels.
+- **Color Palette**: Curated dark ink (`#14171C`), warm bone (`#F7F5F0`), slate clay accents, vivid emerald (`#1E824C`) for primary CTAs, and gold (`#D4AF37`) for saved favourites.

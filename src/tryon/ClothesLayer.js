@@ -1,7 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { makeRig, aimBone, CHAINS } from "./Retarget";
-import { buildSkinnedTee } from "./SkinnedTee";
 
 const MODEL =
   "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
@@ -92,11 +91,11 @@ export class ClothesLayer {
   clearGarment() {
     if (this.garment) { this.holder.remove(this.garment); disposeTree(this.garment); }
     this.garment = null; this.rig = null;
+    this.key = "";
+    this.torso.visible = false;
   }
 
   attach(obj, rig) { this.garment = obj; this.rig = rig; this.holder.add(obj); }
-
-  buildTee(color) { const t = buildSkinnedTee(color); this.attach(t, makeRig(t)); }
 
   loadGlb(url) {
     return new Promise((resolve, reject) => {
@@ -157,18 +156,20 @@ export class ClothesLayer {
     });
   }
 
-  // spec: {kind:"tee", color} | {kind:"glb", url}
+  // spec: {kind:"glb", url} | null
   setGarment(spec, adj) {
-    this.adj = adj;
-    const key = spec.kind === "glb" ? "glb:" + spec.url : "tee:" + spec.color;
+    this.adj = adj || this.adj;
+    if (!spec || spec.kind !== "glb" || !spec.url) {
+      this.clearGarment();
+      this.loadingGarment = null;
+      return Promise.resolve();
+    }
+
+    const key = "glb:" + spec.url;
     if (key === this.key) return this.loadingGarment;
 
     this.key = key;
     this.clearGarment();
-    if (spec.kind !== "glb") {
-      this.loadingGarment = Promise.resolve(this.buildTee(spec.color));
-      return this.loadingGarment;
-    }
 
     const loading = this.loadGlb(spec.url);
     this.loadingGarment = loading.finally(() => {
@@ -179,6 +180,11 @@ export class ClothesLayer {
   }
 
   update(video, ts) {
+    if (!this.garment) {
+      this.torso.visible = false;
+      return;
+    }
+
     const res = this.landmarker.detectForVideo(video, ts);
     const lm = res.landmarks?.[0], wl = res.worldLandmarks?.[0];
     const vis = (i) => lm?.[i]?.visibility ?? 0;
