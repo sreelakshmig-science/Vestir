@@ -6,7 +6,7 @@
 http://localhost:3000
 ```
 
-For a physical mobile device, replace `localhost` with the computer's local IP address.
+For a physical mobile device, replace `localhost` with your computer's local IP address.
 
 ---
 
@@ -19,7 +19,7 @@ After a successful login, the backend returns a JWT token.
 For protected endpoints, send the token using:
 
 ```text
-Authorization: Bearer <token>
+Authorization: Bearer <JWT_TOKEN>
 ```
 
 Protected endpoints:
@@ -149,7 +149,7 @@ Not required.
     "name": "Black Evening Dress",
     "size": "L",
     "description": "Black dress for evening wear",
-    "image": "https://example.com/black.jpg"
+    "image": "https://res.cloudinary.com/..."
   }
 ]
 ```
@@ -182,7 +182,7 @@ Not required.
   "name": "Test Dress",
   "size": "M",
   "description": "Dress created for API testing",
-  "image": "https://example.com/test-dress.jpg"
+  "image": "https://res.cloudinary.com/..."
 }
 ```
 
@@ -215,7 +215,7 @@ Not required currently.
   "name": "Test Dress",
   "size": "M",
   "description": "Dress created for API testing",
-  "image": "https://example.com/test-dress.jpg"
+  "image": "https://res.cloudinary.com/..."
 }
 ```
 
@@ -229,7 +229,7 @@ Not required currently.
     "name": "Test Dress",
     "size": "M",
     "description": "Dress created for API testing",
-    "image": "https://example.com/test-dress.jpg"
+    "image": "https://res.cloudinary.com/..."
   }
 }
 ```
@@ -265,7 +265,7 @@ Example:
   "name": "Updated Dress",
   "size": "L",
   "description": "Updated description",
-  "image": "https://example.com/updated.jpg"
+  "image": "https://res.cloudinary.com/..."
 }
 ```
 
@@ -300,6 +300,65 @@ Not required currently.
   "message": "Dress deleted successfully!"
 }
 ```
+
+---
+
+## Image Upload
+
+### Request
+
+```text
+POST /upload
+```
+
+Uploads an image to Cloudinary.
+
+### Request Content-Type
+
+```text
+multipart/form-data
+```
+
+### Body
+
+Send one form-data field:
+
+| Key     | Type | Required |
+| ------- | ---- | -------- |
+| `image` | File | Yes      |
+
+Maximum file size: **5 MB**.
+
+The current middleware accepts files whose MIME type begins with `image/`.
+
+### Success Response
+
+Status: `200 OK`
+
+```json
+{
+  "message": "Image uploaded successfully!",
+  "image": "https://res.cloudinary.com/...",
+  "public_id": "vestir/..."
+}
+```
+
+* `image`: Secure URL of the uploaded image.
+* `public_id`: Cloudinary identifier for the image.
+
+### Error Responses
+
+* `400 Bad Request`: No image supplied.
+* `500 Internal Server Error`: Upload to Cloudinary failed.
+
+Invalid file types and files larger than 5 MB may be rejected by Multer before the route handler runs.
+
+### Usage Flow
+
+1. Send the image using `POST /upload` as `multipart/form-data`, with the file field named `image`.
+2. Copy the returned `image` URL.
+3. Send that URL in the `image` field when creating or updating a dress.
+4. MongoDB stores the URL, while Cloudinary stores the image.
 
 ---
 
@@ -384,7 +443,7 @@ Authorization: Bearer <JWT_TOKEN>
       "name": "Test Dress",
       "size": "M",
       "description": "Dress created for API testing",
-      "image": "https://example.com/test-dress.jpg"
+      "image": "https://res.cloudinary.com/..."
     }
   }
 ]
@@ -446,9 +505,15 @@ Example header:
 Authorization: Bearer <JWT_TOKEN>
 ```
 
-## Dress Flow
+## Dress and Image Flow
 
 ```text
+POST /upload
+      ↓
+Receive Cloudinary image URL
+      ↓
+POST /dresses with the image URL
+      ↓
 GET /dresses
       ↓
 Display dresses in Home screen
@@ -492,9 +557,11 @@ The phone and computer must be connected to the same network.
 
 ### Image Storage
 
-The current `image` field stores an image URL.
+Dress images are stored in Cloudinary. MongoDB stores the secure Cloudinary URL in the `image` field of each dress document.
 
-A permanent image-storage solution such as Cloudinary or another cloud storage service can be integrated later.
+Use `POST /upload` to upload an image and obtain its URL before creating or updating a dress.
+
+Keep Cloudinary credentials in the backend `.env` file. Do not commit `.env` to GitHub.
 
 ### Try-On
 
