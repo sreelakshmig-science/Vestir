@@ -1,28 +1,16 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose")
 
-const favouriteSchema = new mongoose.Schema(
-  {
+const favouriteSchema = new mongoose.Schema({
     user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "user"
     },
-
     dress: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Dress',
-      required: true,
-    },
-  },
-  {
-    timestamps: true,
-  }
-);
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "dress"
+    }
+})
 
-// Prevent the same user from favouriting the same dress twice
-favouriteSchema.index(
-  { user: 1, dress: 1 },
-  { unique: true }
-);
+const favouriteModel = mongoose.model("favourite", favouriteSchema)
 
-module.exports = mongoose.model('Favourite', favouriteSchema);
+module.exports = favouriteModel

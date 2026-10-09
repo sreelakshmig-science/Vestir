@@ -1,35 +1,12 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose")
 
-const dressSchema = new mongoose.Schema(
-  {
-    name: {
-      type: String,
-      required: true,
-    },
+const dressSchema = new mongoose.Schema({
+    name: String,
+    size: String,
+    description: String,
+    image: String    //store an image URL for now
+})
 
-    size: {
-      type: String,
-      required: true,
-    },
+const dressModel = mongoose.model("dress", dressSchema)
 
-    description: {
-      type: String,
-    },
-
-    imageUrl: {
-      type: String,
-      required: true,
-    },
-
-    uploadedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
-    },
-  },
-  {
-    timestamps: true,
-  }
-);
-
-module.exports = mongoose.model('Dress', dressSchema);
+module.exports = dressModel
