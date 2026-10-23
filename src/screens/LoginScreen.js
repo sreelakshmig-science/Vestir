@@ -3,20 +3,26 @@ import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Pre
 import { colors, spacing, type } from '../theme/tokens';
 import FormField from '../components/FormField';
 import PrimaryButton from '../components/PrimaryButton';
+import { login } from '../auth';
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleLogin = () => {
-    // Later: call POST /api/auth/login on the Express backend here,
-    // store the returned JWT, then navigate.
+  const handleLogin = async () => {
+    if (loading) return;
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    setError('');
+    try {
+      await login(email, password);
       navigation.replace('Home');
-    }, 600);
+    } catch (err) {
+      setError(err.message || 'Login failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -47,6 +53,7 @@ export default function LoginScreen({ navigation }) {
           />
         </View>
 
+        {error ? <Text style={styles.error}>{error}</Text> : null}
         <PrimaryButton label="Log in" onPress={handleLogin} loading={loading} />
 
         <Pressable onPress={() => navigation.navigate('Signup')} style={styles.footer}>
@@ -69,6 +76,7 @@ const styles = StyleSheet.create({
   },
   subtitle: { marginTop: spacing.xs, marginBottom: spacing.xl, color: colors.clay },
   form: { marginBottom: spacing.md },
+  error: { ...type.caption, color: colors.error, marginBottom: spacing.md },
   footer: { marginTop: spacing.lg, alignItems: 'center' },
   link: { color: colors.emerald, fontFamily: type.bodySemiBold?.fontFamily },
 });

@@ -3,11 +3,13 @@ import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Pre
 import { colors, spacing, type } from '../theme/tokens';
 import FormField from '../components/FormField';
 import PrimaryButton from '../components/PrimaryButton';
+import { signup } from '../auth';
 
 export default function SignupScreen({ navigation }) {
   const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '' });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [requestError, setRequestError] = useState('');
 
   const update = (key) => (value) => setForm((f) => ({ ...f, [key]: value }));
 
@@ -21,14 +23,19 @@ export default function SignupScreen({ navigation }) {
     return Object.keys(next).length === 0;
   };
 
-  const handleSignup = () => {
+  const handleSignup = async () => {
+    if (loading) return;
     if (!validate()) return;
-    // Later: POST /api/auth/signup with { name, email, password }
     setLoading(true);
-    setTimeout(() => {
+    setRequestError('');
+    try {
+      await signup(form.name.trim(), form.email.trim(), form.password);
+      navigation.replace('Login');
+    } catch (err) {
+      setRequestError(err.message || 'Sign up failed. Please try again.');
+    } finally {
       setLoading(false);
-      navigation.replace('Instructions');
-    }, 600);
+    }
   };
 
   return (
@@ -52,6 +59,7 @@ export default function SignupScreen({ navigation }) {
           <FormField label="Confirm password" placeholder="••••••••" secureTextEntry value={form.confirm} onChangeText={update('confirm')} error={errors.confirm} />
         </View>
 
+        {requestError ? <Text style={styles.error}>{requestError}</Text> : null}
         <PrimaryButton label="Sign up" onPress={handleSignup} loading={loading} />
 
         <Pressable onPress={() => navigation.goBack()} style={styles.footer}>
@@ -69,6 +77,7 @@ const styles = StyleSheet.create({
   container: { flexGrow: 1, padding: spacing.lg, justifyContent: 'center' },
   subtitle: { marginTop: spacing.xs, marginBottom: spacing.xl, color: colors.clay },
   form: { marginBottom: spacing.md },
+  error: { ...type.caption, color: colors.error, marginBottom: spacing.md },
   footer: { marginTop: spacing.lg, alignItems: 'center' },
   link: { color: colors.emerald },
 });

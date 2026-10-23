@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, Image, StyleSheet, Pressable } from 'react-native';
+import { View, Text, Image, StyleSheet, Pressable, Alert, Platform } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { colors, spacing, type, radius } from '../theme/tokens';
 import PrimaryButton from '../components/PrimaryButton';
@@ -9,7 +9,9 @@ export default function TryOnScreen({ route, navigation }) {
   const dress = route?.params?.dress || { name: 'Garment', size: 'M' };
   const [permission, requestPermission] = useCameraPermissions();
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const cameraRef = useRef(null);
+  const saveInProgressRef = useRef(false);
   const { addFavourite } = useFavourites();
 
   if (!permission) {
@@ -28,10 +30,21 @@ export default function TryOnScreen({ route, navigation }) {
     );
   }
 
-  const handleSave = () => {
-    // Later: could also upload the captured frame to the backend here.
-    addFavourite(dress);
-    setSaved(true);
+  const handleSave = async () => {
+    if (saveInProgressRef.current || saved) return;
+    saveInProgressRef.current = true;
+    setSaving(true);
+    try {
+      await addFavourite(dress);
+      setSaved(true);
+    } catch (error) {
+      const message = error.message || 'Could not save this favourite.';
+      if (Platform.OS === 'web' && typeof window !== 'undefined') window.alert(message);
+      else Alert.alert('Could not save favourite', message);
+    } finally {
+      saveInProgressRef.current = false;
+      setSaving(false);
+    }
   };
 
   return (
@@ -52,6 +65,7 @@ export default function TryOnScreen({ route, navigation }) {
         <PrimaryButton
           label={saved ? 'Saved to favourites ✓' : 'Save to favourites'}
           onPress={handleSave}
+          loading={saving}
           variant={saved ? 'outline' : 'solid'}
         />
       </View>

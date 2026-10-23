@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Image } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Image, Alert, Platform } from 'react-native';
 import { colors, spacing, type, radius } from '../theme/tokens';
 import PrimaryButton from '../components/PrimaryButton';
 import { useFavourites } from '../context/FavouritesContext';
@@ -15,10 +15,12 @@ export default function TryOnScreen({ route, navigation }) {
   const cancelledRef = useRef(false);
   const uploadedUrlsRef = useRef(new Set());
   const initialGenTriggeredRef = useRef(false);
+  const saveInProgressRef = useRef(false);
 
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [controlsOpen, setControlsOpen] = useState(false);
   const [glbUrl, setGlbUrl] = useState(route?.params?.initialGlbUrl || null);
   const [adjustments, setAdjustments] = useState({ s: 1, y: 0, z: 0 });
@@ -239,9 +241,21 @@ export default function TryOnScreen({ route, navigation }) {
     </View>
   );
 
-  const handleSave = () => {
-    addFavourite(dress);
-    setSaved(true);
+  const handleSave = async () => {
+    if (saveInProgressRef.current || saved) return;
+    saveInProgressRef.current = true;
+    setSaving(true);
+    try {
+      await addFavourite(dress);
+      setSaved(true);
+    } catch (error) {
+      const message = error.message || 'Could not save this favourite.';
+      if (Platform.OS === 'web' && typeof window !== 'undefined') window.alert(message);
+      else Alert.alert('Could not save favourite', message);
+    } finally {
+      saveInProgressRef.current = false;
+      setSaving(false);
+    }
   };
 
   const isGenerating = genStatus === 'removing_bg' || genStatus === 'generating';
@@ -407,6 +421,7 @@ export default function TryOnScreen({ route, navigation }) {
               <PrimaryButton
                 label={saved ? 'Saved to favourites ✓' : 'Save to favourites'}
                 onPress={handleSave}
+                loading={saving}
                 variant={saved ? 'outline' : 'solid'}
                 style={styles.saveButton}
               />
@@ -421,6 +436,7 @@ export default function TryOnScreen({ route, navigation }) {
             <PrimaryButton
               label={saved ? 'Saved ✓' : 'Save'}
               onPress={handleSave}
+              loading={saving}
               variant={saved ? 'outline' : 'solid'}
               style={styles.compactSaveButton}
             />
