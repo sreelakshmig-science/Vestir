@@ -1,11 +1,11 @@
 import React from 'react';
-import { View, Text, FlatList, StyleSheet, Pressable } from 'react-native';
+import { View, Text, FlatList, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { colors, spacing, type, radius } from '../theme/tokens';
 import DressCard from '../components/DressCard';
 import { useDresses } from '../context/DressesContext';
 
 export default function HomeScreen({ navigation }) {
-  const { dresses } = useDresses();
+  const { dresses, loading, error } = useDresses();
 
   const handleCreate3D = () => {
     if (typeof document !== 'undefined') {
@@ -58,6 +58,13 @@ export default function HomeScreen({ navigation }) {
         numColumns={2}
         columnWrapperStyle={styles.row}
         contentContainerStyle={styles.grid}
+        ListEmptyComponent={
+          loading ? (
+            <ActivityIndicator color={colors.emerald} style={styles.catalogueMessage} />
+          ) : error ? (
+            <Text style={styles.catalogueMessage}>{error}</Text>
+          ) : null
+        }
         ListHeaderComponent={
           <Pressable style={styles.aiBanner} onPress={handleCreate3D}>
             <View style={styles.aiBadgeRow}>
@@ -104,6 +111,7 @@ const styles = StyleSheet.create({
   brand: { ...type.h2, color: colors.emerald },
   helpLink: { ...type.label, textDecorationLine: 'underline' },
   grid: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
+  catalogueMessage: { ...type.body, color: colors.clay, textAlign: 'center', marginTop: spacing.lg },
   row: { justifyContent: 'space-between' },
   cardHalf: { width: '48%' },
   aiBanner: {

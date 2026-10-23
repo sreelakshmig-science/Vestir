@@ -1,32 +1,100 @@
-import React, { createContext, useContext, useState, useMemo } from 'react';
+import React, { createContext, useContext, useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { apiRequest, getToken } from '../auth';
 
-// A simple React Context standing in for global app state. Once the MERN
-// backend exists, `addFavourite`/`removeFavourite` would also call the API
-// (e.g. POST /api/favourites) - for now they just update local state so the
-// UI is fully demoable on its own.
 const FavouritesContext = createContext(null);
 
 export function FavouritesProvider({ children }) {
-  // Each entry stores the dress plus when it was saved, so Favourites can
-  // show them in chronological order (most recently saved first).
   const [favourites, setFavourites] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const mountedRef = useRef(false);
 
-  const addFavourite = (dress) => {
-    setFavourites((prev) => {
-      if (prev.some((f) => f.id === dress.id)) return prev; // already saved
-      return [{ ...dress, savedAt: Date.now() }, ...prev];
-    });
+  const refreshFavourites = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const records = await apiRequest('favourites', { auth: true });
+      if (!Array.isArray(records)) throw new Error('The backend returned an invalid favourites list.');
+      const items = records.map((record) => {
+        if (!record?._id || !record.dress?._id) {
+          throw new Error('The backend returned an invalid favourite record.');
+        }
+        return {
+          ...record.dress,
+          id: record.dress._id,
+          favouriteId: record._id,
+        };
+      });
+      if (mountedRef.current) setFavourites(items);
+    } catch (loadError) {
+      if (mountedRef.current) setError(loadError.message || 'Could not load favourites.');
+    } finally {
+      if (mountedRef.current) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    const loadSavedFavourites = async () => {
+      try {
+        if (await getToken()) await refreshFavourites();
+      } catch (loadError) {
+        if (mountedRef.current) setError(loadError.message || 'Could not load favourites.');
+      }
+    };
+    loadSavedFavourites();
+    return () => {
+      mountedRef.current = false;
+    };
+  }, [refreshFavourites]);
+
+  const addFavourite = async (dress) => {
+    const dressId = dress?._id;
+    if (!dressId) throw new Error('Only dresses saved to the catalogue can be favourited.');
+    if (favourites.some((favourite) => favourite.id === dressId)) return true;
+
+    setError('');
+    try {
+      const result = await apiRequest('favourites', {
+        method: 'POST',
+        auth: true,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dress: dressId }),
+      });
+      if (!result?.favourite?._id) throw new Error('The backend returned an invalid favourite record.');
+      const item = {
+        ...dress,
+        id: dressId,
+        favouriteId: result.favourite._id,
+      };
+      setFavourites((previous) => [item, ...previous.filter((favourite) => favourite.id !== dressId)]);
+      return true;
+    } catch (saveError) {
+      setError(saveError.message || 'Could not save this favourite.');
+      throw saveError;
+    }
   };
 
-  const removeFavourite = (dressId) => {
-    setFavourites((prev) => prev.filter((f) => f.id !== dressId));
+  const removeFavourite = async (favouriteId) => {
+    setError('');
+    try {
+      await apiRequest(`favourites/${encodeURIComponent(favouriteId)}`, {
+        method: 'DELETE',
+        auth: true,
+      });
+      setFavourites((previous) => previous.filter((favourite) => favourite.favouriteId !== favouriteId));
+      return true;
+    } catch (removeError) {
+      setError(removeError.message || 'Could not remove this favourite.');
+      return false;
+    }
   };
 
   const isFavourite = (dressId) => favourites.some((f) => f.id === dressId);
 
   const value = useMemo(
-    () => ({ favourites, addFavourite, removeFavourite, isFavourite }),
-    [favourites],
+    () => ({ favourites, loading, error, refreshFavourites, addFavourite, removeFavourite, isFavourite }),
+    [favourites, loading, error, refreshFavourites],
   );
 
   return <FavouritesContext.Provider value={value}>{children}</FavouritesContext.Provider>;

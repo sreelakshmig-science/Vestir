@@ -1,27 +1,38 @@
-import React from 'react';
-import { View, Text, Image, FlatList, StyleSheet, Pressable } from 'react-native';
+import React, { useCallback } from 'react';
+import { View, Text, Image, FlatList, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { colors, spacing, type, radius } from '../theme/tokens';
 import { useFavourites } from '../context/FavouritesContext';
 
-function formatSavedAt(timestamp) {
-  const diffMinutes = Math.round((Date.now() - timestamp) / 60000);
-  if (diffMinutes < 1) return 'Just now';
-  if (diffMinutes < 60) return `${diffMinutes}m ago`;
-  const diffHours = Math.round(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-  return new Date(timestamp).toLocaleDateString();
-}
-
 export default function FavouritesScreen({ navigation }) {
-  const { favourites, removeFavourite } = useFavourites();
+  const { favourites, loading, error, refreshFavourites, removeFavourite } = useFavourites();
+
+  useFocusEffect(useCallback(() => {
+    refreshFavourites();
+  }, [refreshFavourites]));
+
+  if (loading && favourites.length === 0) {
+    return (
+      <View style={[styles.flex, styles.empty]}>
+        <ActivityIndicator color={colors.emerald} />
+        <Text style={[type.body, styles.emptyBody]}>Loading favourites...</Text>
+      </View>
+    );
+  }
 
   if (favourites.length === 0) {
     return (
       <View style={[styles.flex, styles.empty]}>
-        <Text style={type.h2}>Nothing saved yet</Text>
-        <Text style={[type.body, styles.emptyBody]}>
-          Try something on and tap Save - it'll show up here.
-        </Text>
+        {error ? (
+          <Text style={[type.body, styles.error]}>{error}</Text>
+        ) : (
+          <>
+            <Text style={type.h2}>Nothing saved yet</Text>
+            <Text style={[type.body, styles.emptyBody]}>
+              Try something on and tap Save - it'll show up here.
+            </Text>
+          </>
+        )}
       </View>
     );
   }
@@ -29,6 +40,7 @@ export default function FavouritesScreen({ navigation }) {
   return (
     <View style={styles.flex}>
       <Text style={[type.h2, styles.header]}>Favourites</Text>
+      {error ? <Text style={[type.body, styles.error]}>{error}</Text> : null}
       <FlatList
         data={favourites}
         keyExtractor={(item) => item.id}
@@ -41,9 +53,9 @@ export default function FavouritesScreen({ navigation }) {
             <Image source={{ uri: item.image }} style={styles.thumb} />
             <View style={styles.rowInfo}>
               <Text style={type.dressName} numberOfLines={1}>{item.name}</Text>
-              <Text style={type.caption}>Size {item.size} · {formatSavedAt(item.savedAt)}</Text>
+              <Text style={type.caption}>Size {item.size}</Text>
             </View>
-            <Pressable onPress={() => removeFavourite(item.id)} hitSlop={10} style={styles.removeButton}>
+            <Pressable onPress={() => removeFavourite(item.favouriteId)} hitSlop={10} style={styles.removeButton}>
               <Text style={styles.removeText}>Remove</Text>
             </Pressable>
           </Pressable>
@@ -71,4 +83,5 @@ const styles = StyleSheet.create({
   removeText: { ...type.caption, color: colors.error },
   empty: { alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   emptyBody: { textAlign: 'center', marginTop: spacing.xs, color: colors.clay },
+  error: { color: colors.error, textAlign: 'center', marginHorizontal: spacing.lg, marginBottom: spacing.md },
 });

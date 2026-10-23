@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, Image, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, Image, StyleSheet, ScrollView, Pressable, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { colors, spacing, type, radius } from '../theme/tokens';
 import FormField from '../components/FormField';
 import PrimaryButton from '../components/PrimaryButton';
 import { useDresses } from '../context/DressesContext';
+import { apiRequest } from '../auth';
 
 export default function UploadDressScreen({ navigation }) {
   const { addDress } = useDresses();
@@ -13,6 +14,7 @@ export default function UploadDressScreen({ navigation }) {
   const [size, setSize] = useState('');
   const [description, setDescription] = useState('');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const pickFromLibrary = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -26,7 +28,7 @@ export default function UploadDressScreen({ navigation }) {
       allowsEditing: true,
       aspect: [3, 4],
     });
-    if (!result.canceled) setImage(result.assets[0].uri);
+    if (!result.canceled) setImage(result.assets[0]);
   };
 
   const takePhoto = async () => {
@@ -40,25 +42,60 @@ export default function UploadDressScreen({ navigation }) {
       allowsEditing: true,
       aspect: [3, 4],
     });
-    if (!result.canceled) setImage(result.assets[0].uri);
+    if (!result.canceled) setImage(result.assets[0]);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (submitting) return;
     if (!image) return setError('Add a photo of the garment first.');
     if (!name.trim()) return setError('Give it a name.');
     if (!size.trim()) return setError('Add a size.');
 
-    // Later: upload `image` to storage (e.g. via a signed URL or multipart
-    // POST to your Express backend) and POST the resulting URL + fields to
-    // POST /api/dresses, instead of only updating local context state.
-    addDress({
-      name: name.trim(),
-      size: size.trim().toUpperCase(),
-      description: description.trim() || 'No description provided.',
-      image,
-      uploader: 'You',
-    });
-    navigation.goBack();
+    setSubmitting(true);
+    setError('');
+    try {
+      const formData = new FormData();
+      if (Platform.OS === 'web') {
+        const file = image.file || await fetch(image.uri).then((response) => {
+          if (!response.ok) throw new Error('Could not read the selected image.');
+          return response.blob();
+        });
+        formData.append('image', file, image.fileName || 'garment.jpg');
+      } else {
+        formData.append('image', {
+          uri: image.uri,
+          name: image.fileName || 'garment.jpg',
+          type: image.mimeType || 'image/jpeg',
+        });
+      }
+
+      const uploaded = await apiRequest('upload', {
+        method: 'POST',
+        body: formData,
+      });
+      if (typeof uploaded?.image !== 'string' || !uploaded.image) {
+        throw new Error('The backend did not return an image URL.');
+      }
+
+      const result = await apiRequest('dresses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          size: size.trim().toUpperCase(),
+          description: description.trim() || 'No description provided.',
+          image: uploaded.image,
+        }),
+      });
+      if (!result?.dress?._id) throw new Error('The backend did not return the saved dress ID.');
+
+      addDress(result.dress);
+      navigation.goBack();
+    } catch (submitError) {
+      setError(submitError.message || 'Could not upload this dress. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -68,7 +105,7 @@ export default function UploadDressScreen({ navigation }) {
 
       {image ? (
         <Pressable onPress={pickFromLibrary}>
-          <Image source={{ uri: image }} style={styles.preview} />
+          <Image source={{ uri: image.uri }} style={styles.preview} />
           <Text style={styles.changePhoto}>Change photo</Text>
         </Pressable>
       ) : (
@@ -98,7 +135,7 @@ export default function UploadDressScreen({ navigation }) {
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <PrimaryButton label="Upload" onPress={handleSubmit} />
+      <PrimaryButton label="Upload" onPress={handleSubmit} loading={submitting} />
     </ScrollView>
   );
 }

@@ -30,7 +30,8 @@
           "cameraPermission": "Muse needs camera access so you can photograph a garment to upload."
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "expo-secure-store"
     ]
   }
 }
